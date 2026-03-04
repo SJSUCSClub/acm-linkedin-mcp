@@ -1,0 +1,13 @@
+{
+  "name": "acm-extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc && cp manifest.json dist/",
+    "watch": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "@types/chrome": "^0.0.158"
+  }
+}
