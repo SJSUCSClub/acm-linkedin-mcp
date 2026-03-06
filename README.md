@@ -51,17 +51,23 @@ This repository contains two primary components:
    uv pip install -r requirements.txt
    ```
 
-2. **Register native messaging host** (Linux example):
+2. **Register native messaging host** (Linux/Chrome example):
 
    ```bash
-   mkdir -p ~/.config/google-chrome/NativeMessagingHosts
-   cp backend/com.acm.snapshot_host.json ~/.config/google-chrome/NativeMessagingHosts/
-   # edit the file and replace:
+   # edit backend/com.acm.snapshot_host.json file and replace:
    #   - "path" with the absolute path to backend/native_host.py
    #     (this script polls the HTTP queue and logs to stderr)
    #   - "__EXTENSION_ID__" with the ID of the unpacked extension
+   # 
+   # you'll also have to edit the path to your virtual python env
+   #   - first line of backend/native_host.py
+   #   - replace with absolute path to the project's python
+   mkdir -p ~/.config/google-chrome/NativeMessagingHosts
+   cp backend/com.acm.snapshot_host.json ~/.config/google-chrome/NativeMessagingHosts/
    chmod +x backend/native_host.py
    ```
+  For Chrome, see https://developer.chrome.com/docs/apps/nativeMessaging/#native-messaging-host-location  
+  For Firefox, see https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests#manifest_location
 
    During development you can view the logs in the log file (`log/native_host.log`):
 
