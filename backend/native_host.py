@@ -1,4 +1,4 @@
-#!/absolute/path/to/.venv/bin/python3
+#!/usr/bin/env python3
 """Native messaging host that polls the FastAPI backend for commands.
 
 This version uses the HTTP queue endpoints defined in `app.py`.  It is
