@@ -30,34 +30,22 @@ function onNativeMessage(msg: any) {
   }
 }
 
-function attachAndRun(tabId: number): Promise<void> {
-  const debuggee: chrome.debugger.Debuggee = { tabId };
-  return new Promise((resolve, reject) => {
-    chrome.debugger.attach(debuggee, "1.3", () => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else {
-        resolve();
-      }
-    });
-  });
+function sendSnapshotResult(requestId: string | undefined, html: string) {
+  if (!requestId) {
+    console.warn("[extension] missing requestId; cannot send snapshotResult");
+    return;
+  }
+  nativePort?.postMessage({ type: "snapshotResult", id: requestId, html });
 }
 
-function detach(tabId: number): Promise<void> {
-  const debuggee: chrome.debugger.Debuggee = { tabId };
-  return new Promise((resolve) => {
-    chrome.debugger.detach(debuggee, () => {
-      if (chrome.runtime.lastError) {
-        console.warn(
-          "[extension] debugger detach error",
-          chrome.runtime.lastError.message,
-        );
-      } else {
-        console.log("[extension] debugger detached from tab", tabId);
-      }
-      resolve();
-    });
+async function evaluateOuterHtml(tabId: number): Promise<string> {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => document.documentElement.outerHTML,
   });
+  const first = results[0];
+  const html = (first?.result as string | undefined) ?? "";
+  return html;
 }
 
 // TODO: this is just an example
@@ -65,38 +53,28 @@ function detach(tabId: number): Promise<void> {
 // tabs and not just take the first one
 async function captureSnapshot(requestId?: string) {
   try {
-    const tabs = await chrome.tabs.query({});
-    let tab = tabs[0];
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const tab = tabs[0];
     if (!tab || tab.id == null) {
       console.warn("[extension] no tabs found to capture snapshot");
+      sendSnapshotResult(requestId, "");
       return;
     }
 
     // avoid chrome:// URLs which the debugger cannot access
     if (tab.url && tab.url.startsWith("chrome://")) {
       console.warn("[extension] privileged tab, skipping snapshot", tab.url);
-      nativePort?.postMessage({ type: "snapshotResult", html: "" });
+      sendSnapshotResult(requestId, "");
       return;
     }
 
     console.info("[extension] capturing snapshot of tab", tab.id, tab.url);
-    await attachAndRun(tab.id);
-
-    const result: any = await new Promise((resolve) => {
-      chrome.debugger.sendCommand(
-        { tabId: tab.id! },
-        "Runtime.evaluate",
-        { expression: "document.documentElement.outerHTML" },
-        resolve,
-      );
-    });
-
-    const html = result?.result?.value || "";
+    const html = await evaluateOuterHtml(tab.id);
     console.log("[extension] snapshotResult was", html);
-    nativePort?.postMessage({ type: "snapshotResult", id: requestId, html });
-    await detach(tab.id);
+    sendSnapshotResult(requestId, html);
   } catch (err) {
     console.error("[extension] captureSnapshot error", err);
+    sendSnapshotResult(requestId, "");
   }
 }
 
