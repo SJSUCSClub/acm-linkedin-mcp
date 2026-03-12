@@ -32,53 +32,16 @@ This repository contains two primary components:
     awaiting HTTP future when the response arrives.
 
 - **Extension**:
-  - Plain MV3 manifest (`extension/manifest.json`) with `debugger`, `tabs`, `activeTab` and `nativeMessaging` permissions.
+  - Plain MV3 manifest (`extension/manifest.json`) with `scripting`, `tabs`, `activeTab` and `nativeMessaging` permissions.
   - Background script (`extension/src/background.ts`) written in TypeScript.
     - connects to the native host and listens for commands
-    - attaches to the active tab using the `chrome.debugger` API
-    - evaluates `document.documentElement.outerHTML` (or any arbitrary DevTools command) and returns the result
-    - detaches once snapshot is obtained; the open debugger session can later be reused for clicks or other interactions.
+    - uses `chrome.scripting.executeScript()` to evaluate `document.documentElement.outerHTML`
 
 ---
 
 ## Setup Instructions
 
-1. **Install Python dependencies** (inside `backend/`):
-
-   ```bash
-   uv venv --python=3.12 ./.venv
-   source ./.venv/bin/activate
-   uv pip install -r requirements.txt
-   ```
-
-2. **Register native messaging host** (Linux/Chrome example):
-
-   ```bash
-   # edit backend/com.acm.snapshot_host.json file and replace:
-   #   - "path" with the absolute path to backend/native_host.py
-   #     (this script polls the HTTP queue and logs to stderr)
-   #   - "__EXTENSION_ID__" with the ID of the unpacked extension
-   # 
-   # you'll also have to edit the path to your virtual python env
-   #   - first line of backend/native_host.py
-   #   - replace with absolute path to the project's python
-   mkdir -p ~/.config/google-chrome/NativeMessagingHosts
-   cp backend/com.acm.snapshot_host.json ~/.config/google-chrome/NativeMessagingHosts/
-   chmod +x backend/native_host.py
-   ```
-  For Chrome, see https://developer.chrome.com/docs/apps/nativeMessaging/#native-messaging-host-location  
-  For Firefox, see https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_manifests#manifest_location
-
-   During development you can view the logs in the log file (`log/native_host.log`):
-
-3. **Run the backend**:
-
-   ```bash
-   cd backend
-   fastapi dev app.py
-   ```
-
-4. **Build and load the extension**:
+1. **Build and load the extension**:
 
    ```bash
    cd extension
@@ -86,11 +49,44 @@ This repository contains two primary components:
    npm run build
    ```
 
-   Load the `extension/` folder (containing `manifest.json`) as an unpacked extension in Chrome. The compiled `background.js` will appear next to the manifest.
+   Load `extension/dist/` (containing `manifest.json`) as an unpacked extension in Chrome.
+   Copy the extension ID shown in `chrome://extensions`.
 
-5. **Trigger a snapshot**:
+2. **Install Python deps and register native messaging host (macOS + Google Chrome)**:
+
    ```bash
-   curl -X POST http://localhost:8000/snapshot
+   ./scripts/install_macos_chrome.sh <extension_id>
+   ```
+
+   `backend/com.acm.snapshot_host.json` is a template committed to the repo.
+   The install script generates the real native messaging host manifest and writes it to:
+   `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.acm.snapshot_host.json`
+   so Chrome can launch the native host and allow the installed extension to connect.
+
+   This script:
+   - creates `backend/.venv` using `uv` and installs `backend/requirements.txt`
+   - installs a wrapper executable under `~/.local/bin/`
+   - writes the native messaging manifest to Chrome's NativeMessagingHosts directory
+
+   On Linux, use:
+
+   ```bash
+   ./scripts/install_linux_chrome.sh <extension_id>
+   ```
+
+   If you're using Chromium instead of Google Chrome, pass `--chromium` as a second argument.
+
+3. **Run the backend**:
+
+   ```bash
+   cd backend
+   source ./.venv/bin/activate
+   fastapi dev app.py
+   ```
+
+4. **Trigger a snapshot**:
+   ```bash
+   curl -X POST http://127.0.0.1:8000/snapshot
    ```
    The command will block until the extension returns HTML; the response body
    contains the page markup and the backend log will also record the length.
